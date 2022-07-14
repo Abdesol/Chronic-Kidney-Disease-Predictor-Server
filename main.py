@@ -4,6 +4,7 @@ import numpy as np
 import joblib
 import uvicorn
 import datetime
+import os
 
 class Request(BaseModel):
     array:list
@@ -71,3 +72,7 @@ async def predict_method(req:Request):
         return {"Error": True, "Message":"Error occured in prediction"}
 
     return {"Error": False, "Prediction": prediction[1], "Probability": prediction[2]}
+
+# run the fastapi
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get('PORT', 8000)), debug=True, reload=True)
