@@ -74,5 +74,8 @@ async def predict_method(req:Request):
     return {"Error": False, "Prediction": prediction[1], "Probability": prediction[2]}
 
 
-if __name__=="__main__":
-    uvicorn.run("main:app", host='0.0.0.0', port=8000, reload=True)
+# if __name__=="__main__":
+#     uvicorn.run("main:app", host='0.0.0.0', port=8000, reload=True)
+
+
+# uvicorn main:app --reload
