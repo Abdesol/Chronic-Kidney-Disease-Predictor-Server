@@ -1,45 +1,49 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import numpy as np
 import joblib
 import uvicorn
 import datetime
 import os
 
+from fastapi.middleware.cors import CORSMiddleware
+
+
 class Request(BaseModel):
-    array:list
+    array: list
+
+
+class DataResponse(BaseModel):
+    error: bool
+    reason: str
+    pred: int
+    proba: float
+
 
 app = FastAPI()
+origins = ["*"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-model = joblib.load("models/main_model.pkl")
 
-def prepare(array:list):
+model = joblib.load("./models/main_model.pkl")
+
+
+def prepare(array: list) -> list:
     array[5] = 1 if array[5] == "normal" else 0
     array[11] = 1 if array[11] == "yes" else 0
-
-    new_array = []
-
-    new_array.append(array[0]) # age
-    new_array.append(array[1]) # bp
-    new_array.append(array[2]) # sg
-    new_array.append(array[3]) # al
-    new_array.append(array[4]) # su
-    new_array.append(array[6]) # bgr
-    new_array.append(array[7]) # bu
-    new_array.append(array[8]) # sc
-    new_array.append(array[9]) # hemo
-    new_array.append(array[10]) # pcv
-
-    new_array.append(array[1]/array[0]) # bp_per_age
-    new_array.append(array[4]/array[6]) # bgr_per_su
-    new_array.append(array[3]/array[7]) # bu_per_al
-
-    new_array.append(array[5]) # pc
-    new_array.append(array[11]) # htn
+    print(array)
+    new_array = [array[0], array[1], array[2], array[3], array[4], array[6], array[7], array[8], array[9], array[10],
+                 array[1] / array[0], array[4] / array[6], array[3] / array[7], array[5], array[11]]
 
     return new_array
 
-def log(err):
+
+def log(err: str):
     time = int(datetime.datetime.now().timestamp())
     log_text = f"Timestampe: {time}"
     log_text += f"\nError: {err}\n"
@@ -47,32 +51,41 @@ def log(err):
         f.write(log_text)
         f.write("\n")
 
-def predict(array:list):
+    return
+
+
+def predict(array: list):
     try:
         array = prepare(array)
         pred = model.predict_proba([array]).tolist()[0]
         proba = pred[0] if pred[0] > pred[1] else pred[1]
         pred = pred.index(proba)
 
-        proba*=100
+        proba *= 100
         proba = 99.0 if proba == 100 else round(proba, 1)
 
         return [True, pred, proba]
     except Exception as e:
-        log(e)
-        return [False]
+        log(str(e))
+        return [False, 0, 0]
 
-@app.post("/predict/")
-async def predict_method(req:Request):
-    if req.array == None or len(req.array) < 1:
-        return {"Error": True, "Message":"Invalid request"}
-    
+
+@app.post("/predict", response_model=DataResponse)
+async def predict_method(req: Request):
+    if req.array is None or len(req.array) < 1:
+        return DataResponse(error=True, pred=0, proba=0, reason="Invalid request")
     prediction = predict(req.array)
     if not prediction[0]:
-        return {"Error": True, "Message":"Error occured in prediction"}
+        return DataResponse(error=True, pred=prediction[1], proba=prediction[2], reason="Failure to get prediction")
 
-    return {"Error": False, "Prediction": prediction[1], "Probability": prediction[2]}
+    return DataResponse(error=False, pred=prediction[1], proba=prediction[2], reason="Success")
 
 # run the fastapi
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get('PORT', 8000)), debug=True, reload=True)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 8000)),
+        debug=True,
+        reload=True,
+    )
